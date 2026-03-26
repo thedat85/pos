@@ -402,97 +402,224 @@ const MenuItemsTab: React.FC = () => {
         </Button>
       </Box>
 
-      <Card sx={m3Card}>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow sx={m3TableHead}>
-                <TableCell>Ảnh</TableCell>
-                <TableCell>Tên món</TableCell>
-                <TableCell align="right">Giá</TableCell>
-                <TableCell>Danh mục</TableCell>
-                <TableCell>Trạng thái</TableCell>
-                <TableCell align="center">Thao tác</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id} sx={m3TableRow}>
-                  <TableCell>
-                    <Avatar
-                      src={item.image_url || undefined}
-                      variant="rounded"
-                      sx={{ width: 48, height: 48, borderRadius: '12px' }}
-                    >
-                      {item.name[0]}
-                    </Avatar>
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 500 }}>{item.name}</TableCell>
-                  <TableCell align="right">
-                    {new Intl.NumberFormat('vi-VN').format(item.price)}
-                  </TableCell>
-                  <TableCell>{item.category?.name || '-'}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={item.status === 'available' ? 'Còn hàng' : 'Hết món'}
-                      size="small"
-                      onClick={() => handleToggleStatus(item)}
-                      sx={{
-                        cursor: 'pointer',
-                        borderRadius: '8px',
-                        fontWeight: 500,
-                        backgroundColor:
-                          item.status === 'available' ? '#E8F5E9' : '#FFEBEE',
-                        color:
-                          item.status === 'available' ? '#1B5E20' : '#B71C1C',
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton size="small" onClick={() => handleOpenEdit(item)} sx={{ color: '#49454F' }}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => handleDelete(item)} sx={{ color: '#B71C1C' }}>
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      component="label"
-                      sx={{ color: '#49454F' }}
-                    >
-                      <UploadIcon fontSize="small" />
-                      <input
-                        type="file"
-                        hidden
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(item, file);
-                        }}
-                      />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
-                    <Box display="flex" flexDirection="column" alignItems="center">
-                      <RestaurantIcon sx={{ fontSize: 64, color: '#CAC4D0', mb: 1 }} />
-                      <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                        Chưa có món nào
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#79747E' }}>
-                        Bấm "Thêm món" để bắt đầu
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
+      {/* Responsive Card Grid */}
+      {items.length === 0 ? (
+        <Card sx={{ ...m3Card, p: 6, textAlign: 'center' }}>
+          <RestaurantIcon sx={{ fontSize: 64, color: '#CAC4D0', mb: 1 }} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+            Chưa có món nào
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#79747E' }}>
+            Bấm "Thêm món" để bắt đầu
+          </Typography>
+        </Card>
+      ) : (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(4, 1fr)',
+            },
+            gap: 2.5,
+          }}
+        >
+          {items.map((item) => (
+            <Card
+              key={item.id}
+              sx={{
+                borderRadius: '1.5rem',
+                overflow: 'hidden',
+                border: 'none',
+                boxShadow: '0 12px 32px rgba(25,28,29,0.04)',
+                transition: 'all 0.2s ease',
+                opacity: item.status === 'out_of_stock' ? 0.7 : 1,
+                filter: item.status === 'out_of_stock' ? 'grayscale(0.5)' : 'none',
+                '&:hover': {
+                  boxShadow: '0 16px 40px rgba(25,28,29,0.08)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              {/* Image — responsive, fills frame */}
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingTop: '65%', // aspect ratio ~3:2
+                  bgcolor: '#f3f4f5',
+                  overflow: 'hidden',
+                }}
+              >
+                {item.image_url ? (
+                  <Box
+                    component="img"
+                    src={item.image_url}
+                    alt={item.name}
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'transform 0.4s ease',
+                      '&:hover': { transform: 'scale(1.05)' },
+                    }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <RestaurantIcon sx={{ fontSize: 40, color: '#bbb' }} />
+                  </Box>
+                )}
+
+                {/* Status badge */}
+                <Chip
+                  label={item.status === 'available' ? 'Còn hàng' : 'Hết món'}
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); handleToggleStatus(item); }}
+                  sx={{
+                    position: 'absolute',
+                    top: 10,
+                    left: 10,
+                    cursor: 'pointer',
+                    borderRadius: '100px',
+                    fontWeight: 700,
+                    fontSize: '0.625rem',
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    height: 24,
+                    bgcolor: item.status === 'available' ? 'rgba(74,222,128,0.9)' : 'rgba(186,26,26,0.85)',
+                    color: '#fff',
+                    backdropFilter: 'blur(4px)',
+                    '&:hover': {
+                      bgcolor: item.status === 'available' ? 'rgba(74,222,128,1)' : 'rgba(186,26,26,1)',
+                    },
+                  }}
+                />
+
+                {/* Upload button overlay */}
+                <IconButton
+                  component="label"
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    bgcolor: 'rgba(255,255,255,0.85)',
+                    backdropFilter: 'blur(8px)',
+                    width: 36,
+                    height: 36,
+                    '&:hover': { bgcolor: 'rgba(255,255,255,1)' },
+                  }}
+                >
+                  <UploadIcon sx={{ fontSize: 18, color: '#534434' }} />
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(item, file);
+                    }}
+                  />
+                </IconButton>
+              </Box>
+
+              {/* Content */}
+              <Box sx={{ p: 2 }}>
+                {/* Category chip */}
+                {item.category?.name && (
+                  <Typography
+                    sx={{
+                      fontSize: '0.625rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: '#855300',
+                      mb: 0.5,
+                    }}
+                  >
+                    {item.category.name}
+                  </Typography>
+                )}
+
+                <Typography
+                  sx={{
+                    fontSize: '0.9375rem',
+                    fontWeight: 600,
+                    color: '#191c1d',
+                    mb: 0.5,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {item.name}
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    color: '#855300',
+                    fontFamily: '"Manrope", sans-serif',
+                  }}
+                >
+                  {new Intl.NumberFormat('vi-VN').format(item.price)}đ
+                </Typography>
+
+                {/* Actions */}
+                <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditIcon sx={{ fontSize: '16px !important' }} />}
+                    onClick={() => handleOpenEdit(item)}
+                    sx={{
+                      flex: 1,
+                      textTransform: 'none',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      minHeight: 36,
+                      borderRadius: 10,
+                      borderColor: 'rgba(83,68,52,0.15)',
+                      color: '#534434',
+                      '&:hover': { borderColor: '#855300', bgcolor: 'rgba(133,83,0,0.04)' },
+                    }}
+                  >
+                    Sửa
+                  </Button>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDelete(item)}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      border: '1px solid rgba(186,26,26,0.2)',
+                      color: '#ba1a1a',
+                      '&:hover': { bgcolor: 'rgba(186,26,26,0.06)' },
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Box>
+              </Box>
+            </Card>
+          ))}
+        </Box>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth sx={m3Dialog}>
