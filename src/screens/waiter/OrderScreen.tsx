@@ -364,28 +364,45 @@ export default function OrderScreen() {
                     {/* Image */}
                     <Box
                       sx={{
-                        height: 160,
-                        bgcolor: item.image_url ? undefined : '#f3f4f5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden',
                         position: 'relative',
-                        backgroundImage: item.image_url
-                          ? `url(${item.image_url})`
-                          : undefined,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        transition: 'transform 0.3s ease',
-                        '&:hover': {
-                          transform: isOutOfStock ? 'none' : 'scale(1.05)',
-                        },
+                        width: '100%',
+                        paddingTop: '65%', // aspect ratio ~3:2
+                        bgcolor: item.image_url ? undefined : '#f3f4f5',
+                        overflow: 'hidden',
                       }}
                     >
-                      {!item.image_url && (
-                        <NoImageIcon
-                          sx={{ fontSize: 40, color: '#534434', opacity: 0.25 }}
+                      {item.image_url ? (
+                        <Box
+                          component="img"
+                          src={item.image_url}
+                          alt={item.name}
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transition: 'transform 0.3s ease',
+                            '&:hover': {
+                              transform: isOutOfStock ? 'none' : 'scale(1.05)',
+                            },
+                          }}
                         />
+                      ) : (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <NoImageIcon
+                            sx={{ fontSize: 40, color: '#534434', opacity: 0.25 }}
+                          />
+                        </Box>
                       )}
 
                       {/* Sold out overlay */}
