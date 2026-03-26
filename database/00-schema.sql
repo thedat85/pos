@@ -180,3 +180,23 @@ CREATE TABLE public.system_config (
 ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.order_items;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.tables;
+
+-- ============================================
+-- Storage: menu-images bucket
+-- ============================================
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('menu-images', 'menu-images', true, 5242880, ARRAY['image/jpeg','image/png','image/webp','image/gif'])
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS: public read, authenticated upload/update/delete
+CREATE POLICY "menu-images allow public read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'menu-images');
+
+CREATE POLICY "menu-images allow auth upload" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'menu-images' AND auth.uid() IS NOT NULL);
+
+CREATE POLICY "menu-images allow auth update" ON storage.objects
+  FOR UPDATE USING (bucket_id = 'menu-images' AND auth.uid() IS NOT NULL);
+
+CREATE POLICY "menu-images allow auth delete" ON storage.objects
+  FOR DELETE USING (bucket_id = 'menu-images' AND auth.uid() IS NOT NULL);
