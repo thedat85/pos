@@ -1,0 +1,44 @@
+{
+  "project": {
+    "name": "Restaurant POS",
+    "description": "He thong Quan ly Nha hang (POS) - ordering, kitchen display, payment, reporting",
+    "backend": "Supabase (PostgreSQL + Auth + Realtime + Storage)",
+    "frontend": "React 18 + TypeScript + Vite + Tailwind CSS + Material Design"
+  },
+  "actors": [
+    { "role": "waiter", "screens": ["SCR-01", "SCR-02", "SCR-03", "SCR-04", "SCR-05", "SCR-06"] },
+    { "role": "kitchen", "screens": ["SCR-01", "SCR-07"] },
+    { "role": "cashier", "screens": ["SCR-01", "SCR-08", "SCR-09"] },
+    { "role": "manager", "screens": ["SCR-01", "SCR-10", "SCR-11", "SCR-12", "SCR-13", "SCR-14", "SCR-15", "SCR-16", "SCR-17"] }
+  ],
+  "features": {
+    "reservation": { "id": "FN-01", "frs": "FR-01~FR-08", "priority": "Must", "screens": ["SCR-02", "SCR-03"] },
+    "order": { "id": "FN-02", "frs": "FR-09~FR-16", "priority": "Must", "screens": ["SCR-04", "SCR-05", "SCR-06"] },
+    "kitchen": { "id": "FN-03", "frs": "FR-17~FR-20", "priority": "Must", "screens": ["SCR-07"] },
+    "payment": { "id": "FN-04", "frs": "FR-21~FR-27", "priority": "Must", "screens": ["SCR-08", "SCR-09"] },
+    "tableManagement": { "id": "FN-05", "frs": "FR-28~FR-33", "priority": "Must", "screens": ["SCR-10", "SCR-04"] },
+    "menuManagement": { "id": "FN-06", "frs": "FR-34~FR-40", "priority": "Must", "screens": ["SCR-11"] },
+    "paymentConfig": { "id": "FN-07", "frs": "FR-41~FR-43", "priority": "Should", "screens": ["SCR-14", "SCR-15"] },
+    "revenueReport": { "id": "FN-08", "frs": "FR-44~FR-47", "priority": "Should", "screens": ["SCR-13"] },
+    "inventory": { "id": "FN-09", "frs": "FR-48~FR-55", "priority": "Should", "screens": ["SCR-12"] },
+    "userAuth": { "id": "FN-10", "frs": "FR-56~FR-59", "priority": "Must", "screens": ["SCR-01", "SCR-16"] }
+  },
+  "entities": [
+    "users", "tables", "reservations", "categories", "menu_items",
+    "orders", "order_items", "payments", "ingredients", "inventory_imports",
+    "payment_config", "system_config"
+  ],
+  "businessRules": [
+    { "id": "BR-01", "rule": "1 ban chi co 1 order active tai 1 thoi diem" },
+    { "id": "BR-02", "rule": "Khong thanh toan order chua hoan tat (configurable)" },
+    { "id": "BR-03", "rule": "QR Code phai dung so tien" },
+    { "id": "BR-04", "rule": "Mon Out of stock khong cho order" },
+    { "id": "BR-05", "rule": "Dat ban truoc toi thieu X phut (configurable, mac dinh 30)" },
+    { "id": "BR-06", "rule": "Order status flow: New → Sent to Kitchen → Preparing → Done → Closed" },
+    { "id": "BR-07", "rule": "Ban tu dong chuyen trang thai theo hanh dong" },
+    { "id": "BR-08", "rule": "Thue/phi configurable" }
+  ],
+  "apiCount": 51,
+  "wsEventCount": 6,
+  "screenCount": 17
+}
