@@ -78,7 +78,7 @@ export default function PaymentScreen() {
   const [processing, setProcessing] = useState(false);
 
   // Payment form state
-  const [paymentTab, setPaymentTab] = useState(0); // 0 = cash, 1 = qr
+  const [paymentTab, setPaymentTab] = useState(1); // 0 = cash, 1 = qr
   const [amountReceived, setAmountReceived] = useState('');
 
   // Load list of done orders if no orderId in URL
