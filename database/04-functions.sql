@@ -4,6 +4,35 @@
 -- ============================================
 
 -- ============================================
+-- 0. Auto-generate order_code: YYMMDD_00001
+-- ============================================
+CREATE OR REPLACE FUNCTION public.generate_order_code()
+RETURNS TRIGGER AS $$
+DECLARE
+  today_prefix TEXT;
+  seq_num INTEGER;
+BEGIN
+  today_prefix := TO_CHAR(NOW(), 'YYMMDD');
+
+  SELECT COALESCE(MAX(
+    NULLIF(SPLIT_PART(order_code, '_', 2), '')::INTEGER
+  ), 0) + 1
+  INTO seq_num
+  FROM public.orders
+  WHERE order_code LIKE today_prefix || '_%';
+
+  NEW.order_code := today_prefix || '_' || LPAD(seq_num::TEXT, 5, '0');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_order_code
+  BEFORE INSERT ON public.orders
+  FOR EACH ROW
+  WHEN (NEW.order_code IS NULL)
+  EXECUTE FUNCTION public.generate_order_code();
+
+-- ============================================
 -- 1. Auto-update updated_at timestamp
 -- ============================================
 CREATE OR REPLACE FUNCTION public.update_updated_at()

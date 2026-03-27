@@ -36,10 +36,10 @@ SQL_FILES = [
 ]
 
 DEFAULT_USERS = [
-    ("manager@posrestaurant.com", "Manager@123", "manager", "Admin Manager", "manager"),
-    ("waiter@posrestaurant.com", "Test@123", "waiter01", "Nguyễn Văn A", "waiter"),
-    ("kitchen@posrestaurant.com", "Test@123", "kitchen01", "Trần Văn B", "kitchen"),
-    ("cashier@posrestaurant.com", "Test@123", "cashier01", "Lê Thị C", "cashier"),
+    ("quanly@pos.com", "Manager@123", "manager", "Admin Manager", "manager"),
+    ("boiban@pos.com", "Test@123", "waiter01", "Nguyễn Văn A", "waiter"),
+    ("bep@pos.com", "Test@123", "kitchen01", "Trần Văn B", "kitchen"),
+    ("thungan@pos.com", "Test@123", "cashier01", "Lê Thị C", "cashier"),
 ]
 
 

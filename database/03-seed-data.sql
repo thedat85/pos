@@ -103,12 +103,12 @@ INSERT INTO public.ingredients (name, unit, quantity, min_quantity) VALUES
 -- ============================================
 -- Để tạo users, chạy script migrate.py hoặc tạo thủ công:
 --
--- | Role    | Username   | Email                       | Password    |
--- |---------|------------|-----------------------------|-------------|
--- | Manager | manager    | manager@posrestaurant.com   | Manager@123 |
--- | Waiter  | waiter01   | waiter@posrestaurant.com    | Test@123    |
--- | Kitchen | kitchen01  | kitchen@posrestaurant.com   | Test@123    |
--- | Cashier | cashier01  | cashier@posrestaurant.com   | Test@123    |
+-- | Role    | Username   | Email              | Password    |
+-- |---------|------------|--------------------|-------------|
+-- | Manager | manager    | quanly@pos.com     | Manager@123 |
+-- | Waiter  | waiter01   | boiban@pos.com     | Test@123    |
+-- | Kitchen | kitchen01  | bep@pos.com        | Test@123    |
+-- | Cashier | cashier01  | thungan@pos.com    | Test@123    |
 --
 -- Sau khi tạo auth user, INSERT vào public.users:
 -- INSERT INTO public.users (auth_id, username, full_name, role, is_active)

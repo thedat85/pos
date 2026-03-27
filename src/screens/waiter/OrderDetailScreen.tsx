@@ -1,29 +1,28 @@
 // ============================================
-// SCR-06: Order Detail Screen (Realtime) (M3)
+// SCR-06: Order Detail Screen (Realtime)
+// Stitch Tactile Atelier design
 // ============================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Box,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Chip,
   Button,
-  Divider,
+  IconButton,
   CircularProgress,
-  Stack,
 } from '@mui/material';
 import {
+  ArrowBack as BackIcon,
   Add as AddIcon,
+  Remove as RemoveIcon,
+  Delete as DeleteIcon,
   Payment as PaymentIcon,
   AccessTime as TimeIcon,
+  Send as SendIcon,
+  Restaurant as RestaurantIcon,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { orderService } from '../../services/orderService';
@@ -31,13 +30,31 @@ import { useRealtimeTable } from '../../hooks/useRealtime';
 import {
   ORDER_STATUS_LABELS,
   ORDER_ITEM_STATUS_LABELS,
+  formatOrderCode,
 } from '../../lib/constants';
 import type { Order, OrderItem } from '../../types';
 
+/* ── Stitch Tactile Atelier tokens ── */
+const S = {
+  surface: '#f8f9fa',
+  surfaceLow: '#f3f4f5',
+  surfaceLowest: '#ffffff',
+  onSurface: '#191c1d',
+  onSurfaceVariant: '#534434',
+  primary: '#855300',
+  primaryContainer: '#f59e0b',
+  tertiary: '#00658b',
+  tertiaryContainer: '#1abdff',
+  error: '#ba1a1a',
+  success: '#4ade80',
+  successDark: '#16a34a',
+  secondaryContainer: '#ffddb8',
+  outline: '#e0ddd9',
+  shadow: '0 12px 32px rgba(25,28,29,0.04)',
+};
+
 const formatVND = (amount: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-    amount,
-  );
+  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
 const formatTime = (dateStr: string) =>
   new Date(dateStr).toLocaleString('vi-VN', {
@@ -49,25 +66,32 @@ const formatTime = (dateStr: string) =>
   });
 
 const STATUS_CHIP_STYLES: Record<string, { bg: string; color: string }> = {
-  new: { bg: '#F7F2FA', color: '#49454F' },
-  sent_to_kitchen: { bg: '#E3F2FD', color: '#0D47A1' },
-  preparing: { bg: '#FFF3E0', color: '#E65100' },
-  completed: { bg: '#E8F5E9', color: '#1B5E20' },
-  done: { bg: '#E8F5E9', color: '#1B5E20' },
-  closed: { bg: '#FFEBEE', color: '#B71C1C' },
+  new: { bg: '#f3f4f5', color: S.onSurfaceVariant },
+  sent_to_kitchen: { bg: '#e0f2fe', color: S.tertiary },
+  preparing: { bg: S.secondaryContainer, color: S.primary },
+  completed: { bg: '#dcfce7', color: S.successDark },
+  done: { bg: '#dcfce7', color: S.successDark },
+  closed: { bg: '#fee2e2', color: S.error },
 };
 
 const getChipStyle = (status: string) =>
-  STATUS_CHIP_STYLES[status] || { bg: '#F7F2FA', color: '#49454F' };
+  STATUS_CHIP_STYLES[status] || { bg: '#f3f4f5', color: S.onSurfaceVariant };
 
 export default function OrderDetailScreen() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const canPayDirectly = user?.role === 'cashier' || user?.role === 'manager';
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const prevItemStatusRef = useRef<Map<string, string>>(new Map());
+
+  // Track local quantity edits: itemId → new quantity
+  const [editedQuantities, setEditedQuantities] = useState<Record<string, number>>({});
+  // Track items marked for removal
+  const [removedItems, setRemovedItems] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
 
   const loadOrder = useCallback(async () => {
     if (!orderId) return;
@@ -108,6 +132,86 @@ export default function OrderDetailScreen() {
     orderId ? `order_id=eq.${orderId}` : undefined,
   );
 
+  const items: OrderItem[] = order?.items || [];
+
+  // Check if there are pending changes
+  const hasChanges = useMemo(() => {
+    if (removedItems.size > 0) return true;
+    for (const [itemId, newQty] of Object.entries(editedQuantities)) {
+      const original = items.find((i) => i.id === itemId);
+      if (original && original.quantity !== newQty) return true;
+    }
+    return false;
+  }, [editedQuantities, removedItems, items]);
+
+  const getDisplayQuantity = (item: OrderItem) =>
+    editedQuantities[item.id] ?? item.quantity;
+
+  const handleQuantityChange = (item: OrderItem, delta: number) => {
+    const current = getDisplayQuantity(item);
+    const newQty = Math.max(1, current + delta);
+    setEditedQuantities((prev) => ({ ...prev, [item.id]: newQty }));
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    setRemovedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId); // toggle undo
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmitChanges = async () => {
+    if (!order) return;
+    setSubmitting(true);
+    try {
+      // 1. Remove items
+      const removeIds = Array.from(removedItems);
+      for (const itemId of removeIds) {
+        await orderService.removeItem(itemId);
+      }
+
+      // 2. Update quantities
+      for (const [itemId, newQty] of Object.entries(editedQuantities)) {
+        if (removedItems.has(itemId)) continue;
+        const original = items.find((i) => i.id === itemId);
+        if (original && original.quantity !== newQty) {
+          await orderService.updateItemQuantity(itemId, newQty);
+        }
+      }
+
+      // 3. Re-send to kitchen (updates status of 'new' items)
+      await orderService.sendToKitchen(order.id);
+
+      // Reset edit state
+      setEditedQuantities({});
+      setRemovedItems(new Set());
+      toast.success('Đã cập nhật và gửi lại bếp!');
+      await loadOrder();
+    } catch (err) {
+      toast.error('Lỗi cập nhật đơn hàng');
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setEditedQuantities({});
+    setRemovedItems(new Set());
+  };
+
+  // Calculate totals based on edited state
+  const displayItems = items.filter((i) => !removedItems.has(i.id));
+  const subtotal = displayItems.reduce(
+    (sum, item) => sum + item.item_price * getDisplayQuantity(item),
+    0,
+  );
+
   if (loading) {
     return (
       <Box
@@ -115,315 +219,476 @@ export default function OrderDetailScreen() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          minHeight: '60vh',
+          minHeight: '100vh',
+          bgcolor: S.surface,
         }}
       >
-        <CircularProgress sx={{ color: '#C62828' }} />
+        <CircularProgress sx={{ color: S.primaryContainer }} />
       </Box>
     );
   }
 
   if (!order) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography sx={{ color: '#B71C1C', fontSize: '0.875rem' }}>
+      <Box sx={{ p: 3, textAlign: 'center', bgcolor: S.surface, minHeight: '100vh' }}>
+        <Typography sx={{ color: S.onSurfaceVariant, fontSize: '0.875rem' }}>
           Không tìm thấy đơn hàng
         </Typography>
       </Box>
     );
   }
 
-  const items: OrderItem[] = order.items || [];
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.item_price * item.quantity,
-    0,
-  );
-
   const orderStatusStyle = getChipStyle(order.status);
 
+  // Can edit items that are 'new' or 'sent_to_kitchen' (not yet being prepared)
+  const canEditItem = (item: OrderItem) =>
+    item.status === 'new' || item.status === 'sent_to_kitchen';
+
   return (
-    <Box sx={{ p: 3, maxWidth: 900, mx: 'auto', bgcolor: '#FFFBFE', minHeight: '100vh' }}>
-      {/* Header Card */}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        bgcolor: S.surface,
+        fontFamily: '"Inter", sans-serif',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* ── Sticky Header ── */}
       <Box
         sx={{
-          p: 3,
-          mb: 3,
-          borderRadius: '16px',
-          bgcolor: '#F7F2FA',
-          border: '1px solid #E7E0EC',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          bgcolor: S.surfaceLowest,
+          borderBottom: `1px solid ${S.outline}`,
+          px: { xs: 2, md: 3 },
+          py: 1.5,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
         }}
       >
-        <Box
+        <IconButton
+          onClick={() => navigate('/waiter/tables')}
           sx={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: 2,
-            mb: 2,
+            color: S.onSurface,
+            border: `1px solid ${S.outline}`,
+            borderRadius: '0.75rem',
+            width: 40,
+            height: 40,
+            '&:hover': { bgcolor: S.surfaceLow },
           }}
         >
+          <BackIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography
             sx={{
-              fontSize: '1.5rem',
-              fontWeight: 400,
-              color: '#1C1B1F',
+              fontSize: { xs: '1.1rem', md: '1.25rem' },
+              fontWeight: 700,
+              color: S.onSurface,
+              fontFamily: '"Manrope", sans-serif',
             }}
           >
-            Ban {order.table?.table_no || '---'}
+            Bàn {order.table?.table_no || '---'}
           </Typography>
-          <Chip
-            label={ORDER_STATUS_LABELS[order.status] || order.status}
-            sx={{
-              fontWeight: 600,
-              fontSize: '0.8125rem',
-              bgcolor: orderStatusStyle.bg,
-              color: orderStatusStyle.color,
-              borderRadius: '8px',
-            }}
-          />
-          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <TimeIcon sx={{ fontSize: 18, color: '#79747E' }} />
-            <Typography sx={{ fontSize: '0.875rem', color: '#79747E' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.25 }}>
+            <TimeIcon sx={{ fontSize: 14, color: S.onSurfaceVariant }} />
+            <Typography sx={{ fontSize: '0.75rem', color: S.onSurfaceVariant }}>
               {formatTime(order.created_at)}
             </Typography>
           </Box>
         </Box>
-        <Typography sx={{ fontSize: '0.8125rem', color: '#79747E' }}>
-          Mã đơn: {order.id}
-        </Typography>
+
+        <Chip
+          label={ORDER_STATUS_LABELS[order.status] || order.status}
+          sx={{
+            fontWeight: 600,
+            fontSize: '0.75rem',
+            bgcolor: orderStatusStyle.bg,
+            color: orderStatusStyle.color,
+            borderRadius: '0.75rem',
+            height: 28,
+          }}
+        />
       </Box>
 
-      {/* Items Table */}
-      <TableContainer
-        sx={{
-          mb: 3,
-          borderRadius: '16px',
-          border: '1px solid #E7E0EC',
-          bgcolor: '#fff',
-        }}
-      >
-        <Table>
-          <TableHead>
-            <TableRow sx={{ bgcolor: '#F7F2FA' }}>
-              <TableCell
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  textTransform: 'uppercase',
-                  color: '#49454F',
-                  borderBottom: '1px solid #E7E0EC',
-                }}
-              >
-                Món
-              </TableCell>
-              <TableCell
-                align="center"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  textTransform: 'uppercase',
-                  color: '#49454F',
-                  borderBottom: '1px solid #E7E0EC',
-                }}
-              >
-                SL
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  textTransform: 'uppercase',
-                  color: '#49454F',
-                  borderBottom: '1px solid #E7E0EC',
-                }}
-              >
-                Đơn giá
-              </TableCell>
-              <TableCell
-                align="right"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  textTransform: 'uppercase',
-                  color: '#49454F',
-                  borderBottom: '1px solid #E7E0EC',
-                }}
-              >
-                Thành tiền
-              </TableCell>
-              <TableCell
-                align="center"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8125rem',
-                  textTransform: 'uppercase',
-                  color: '#49454F',
-                  borderBottom: '1px solid #E7E0EC',
-                }}
-              >
-                Trạng thái
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((item) => {
+      {/* ── Content ── */}
+      <Box sx={{ flex: 1, overflow: 'auto', px: { xs: 2, md: 3 }, py: 2 }}>
+        {/* Order ID */}
+        <Typography sx={{ fontSize: '0.75rem', color: S.onSurfaceVariant, mb: 2 }}>
+          Mã đơn: {formatOrderCode(order)}
+        </Typography>
+
+        {/* ── Items List ── */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 3 }}>
+          {items.length === 0 ? (
+            <Box
+              sx={{
+                textAlign: 'center',
+                py: 6,
+                bgcolor: S.surfaceLowest,
+                borderRadius: '1rem',
+                border: `1px solid ${S.outline}`,
+              }}
+            >
+              <RestaurantIcon sx={{ fontSize: 40, color: S.outline, mb: 1 }} />
+              <Typography sx={{ color: S.onSurfaceVariant, fontSize: '0.875rem' }}>
+                Chưa có món nào
+              </Typography>
+            </Box>
+          ) : (
+            items.map((item) => {
+              const isRemoved = removedItems.has(item.id);
               const chipStyle = getChipStyle(item.status);
+              const editable = canEditItem(item);
+              const qty = getDisplayQuantity(item);
+              const originalQty = item.quantity;
+              const qtyChanged = editedQuantities[item.id] !== undefined && editedQuantities[item.id] !== originalQty;
+
               return (
-                <TableRow
+                <Box
                   key={item.id}
                   sx={{
-                    '&:hover': { bgcolor: '#F7F2FA' },
-                    '& td': { borderBottom: '1px solid #E7E0EC' },
+                    bgcolor: S.surfaceLowest,
+                    borderRadius: '1rem',
+                    border: `1px solid ${isRemoved ? S.error : S.outline}`,
+                    p: { xs: 1.5, md: 2 },
+                    opacity: isRemoved ? 0.45 : 1,
+                    transition: 'all 0.2s ease',
+                    textDecoration: isRemoved ? 'line-through' : 'none',
                   }}
                 >
-                  <TableCell sx={{ fontSize: '0.875rem', color: '#1C1B1F' }}>
-                    {item.item_name}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontSize: '0.875rem', color: '#1C1B1F' }}>
-                    {item.quantity}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontSize: '0.875rem', color: '#49454F' }}>
-                    {formatVND(item.item_price)}
-                  </TableCell>
-                  <TableCell align="right" sx={{ fontSize: '0.875rem', fontWeight: 500, color: '#1C1B1F' }}>
-                    {formatVND(item.item_price * item.quantity)}
-                  </TableCell>
-                  <TableCell align="center">
+                  {/* Top row: name + status chip */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                    <Typography
+                      sx={{
+                        fontSize: { xs: '0.875rem', md: '1rem' },
+                        fontWeight: 600,
+                        color: S.onSurface,
+                        flex: 1,
+                        lineHeight: 1.4,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {item.item_name}
+                    </Typography>
                     <Chip
-                      label={
-                        ORDER_ITEM_STATUS_LABELS[item.status] || item.status
-                      }
+                      label={ORDER_ITEM_STATUS_LABELS[item.status] || item.status}
                       size="small"
                       sx={{
                         fontWeight: 600,
-                        minWidth: 70,
-                        fontSize: '0.75rem',
+                        fontSize: '0.7rem',
                         bgcolor: chipStyle.bg,
                         color: chipStyle.color,
-                        borderRadius: '8px',
+                        borderRadius: '0.5rem',
+                        height: 24,
+                        flexShrink: 0,
                       }}
                     />
-                  </TableCell>
-                </TableRow>
+                  </Box>
+
+                  {/* Bottom row: price + quantity controls + remove */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                    {/* Price */}
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: '0.75rem', color: S.onSurfaceVariant }}>
+                        {formatVND(item.item_price)} x {qty}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, color: S.primary }}>
+                        {formatVND(item.item_price * qty)}
+                        {qtyChanged && !isRemoved && (
+                          <Box
+                            component="span"
+                            sx={{ fontSize: '0.7rem', color: S.tertiary, ml: 0.75, fontWeight: 500 }}
+                          >
+                            (đã sửa)
+                          </Box>
+                        )}
+                      </Typography>
+                    </Box>
+
+                    {/* Quantity controls + remove */}
+                    {editable && !isRemoved && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleQuantityChange(item, -1)}
+                          disabled={qty <= 1}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            border: `1px solid ${S.outline}`,
+                            borderRadius: '0.5rem',
+                            color: S.onSurface,
+                            '&:hover': { bgcolor: S.surfaceLow },
+                            '&.Mui-disabled': { opacity: 0.3 },
+                          }}
+                        >
+                          <RemoveIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <Typography
+                          sx={{
+                            minWidth: 28,
+                            textAlign: 'center',
+                            fontWeight: 700,
+                            fontSize: '0.875rem',
+                            color: S.onSurface,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {qty}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleQuantityChange(item, 1)}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            border: `1px solid ${S.outline}`,
+                            borderRadius: '0.5rem',
+                            color: S.onSurface,
+                            '&:hover': { bgcolor: S.surfaceLow },
+                          }}
+                        >
+                          <AddIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveItem(item.id)}
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '0.5rem',
+                            color: S.error,
+                            ml: 0.5,
+                            '&:hover': { bgcolor: 'rgba(186,26,26,0.08)' },
+                          }}
+                        >
+                          <DeleteIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Box>
+                    )}
+
+                    {/* Undo remove */}
+                    {editable && isRemoved && (
+                      <Button
+                        size="small"
+                        onClick={() => handleRemoveItem(item.id)}
+                        sx={{
+                          textTransform: 'none',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: S.tertiary,
+                          borderRadius: '0.5rem',
+                          minWidth: 0,
+                          px: 1.5,
+                        }}
+                      >
+                        Hoàn tác
+                      </Button>
+                    )}
+
+                    {/* Non-editable: just show qty */}
+                    {!editable && (
+                      <Typography
+                        sx={{
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          color: S.onSurfaceVariant,
+                        }}
+                      >
+                        SL: {item.quantity}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
               );
-            })}
+            })
+          )}
+        </Box>
 
-            {items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                  <Typography sx={{ color: '#79747E', fontSize: '0.875rem' }}>
-                    Chưa có món nào
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Totals Card */}
-      <Box
-        sx={{
-          p: 3,
-          mb: 3,
-          borderRadius: '16px',
-          bgcolor: '#FFDAD4',
-          border: '1px solid #E7E0EC',
-        }}
-      >
-        <Stack spacing={1.5}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography sx={{ color: '#49454F', fontSize: '0.875rem' }}>Tạm tính</Typography>
-            <Typography sx={{ color: '#1C1B1F', fontSize: '0.875rem' }}>{formatVND(subtotal)}</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography sx={{ color: '#49454F', fontSize: '0.875rem' }}>Thuế (VAT)</Typography>
-            <Typography sx={{ color: '#1C1B1F', fontSize: '0.875rem' }}>{formatVND(order.tax_amount || 0)}</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Typography sx={{ color: '#49454F', fontSize: '0.875rem' }}>Phí dịch vụ</Typography>
-            <Typography sx={{ color: '#1C1B1F', fontSize: '0.875rem' }}>{formatVND(order.service_fee || 0)}</Typography>
-          </Box>
-          <Divider sx={{ borderColor: 'rgba(198,40,40,0.2)' }} />
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography
+        {/* ── Totals ── */}
+        {items.length > 0 && (
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.5 },
+              borderRadius: '1rem',
+              bgcolor: S.surfaceLowest,
+              border: `1px solid ${S.outline}`,
+              mb: 3,
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography sx={{ color: S.onSurfaceVariant, fontSize: '0.875rem' }}>
+                Tạm tính
+              </Typography>
+              <Typography sx={{ color: S.onSurface, fontSize: '0.875rem' }}>
+                {formatVND(subtotal)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+              <Typography sx={{ color: S.onSurfaceVariant, fontSize: '0.875rem' }}>
+                Thuế (VAT)
+              </Typography>
+              <Typography sx={{ color: S.onSurface, fontSize: '0.875rem' }}>
+                {formatVND(order.tax_amount || 0)}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography sx={{ color: S.onSurfaceVariant, fontSize: '0.875rem' }}>
+                Phí dịch vụ
+              </Typography>
+              <Typography sx={{ color: S.onSurface, fontSize: '0.875rem' }}>
+                {formatVND(order.service_fee || 0)}
+              </Typography>
+            </Box>
+            <Box
               sx={{
-                fontSize: '1.25rem',
-                fontWeight: 500,
-                color: '#1C1B1F',
+                pt: 1.5,
+                borderTop: `2px solid ${S.surfaceLow}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
               }}
             >
-              Tổng cộng
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '1.5rem',
-                fontWeight: 700,
-                color: '#C62828',
-              }}
-            >
-              {formatVND(order.total || subtotal)}
-            </Typography>
+              <Typography
+                sx={{
+                  fontSize: '1rem',
+                  fontWeight: 800,
+                  color: S.onSurface,
+                  fontFamily: '"Manrope", sans-serif',
+                }}
+              >
+                TỔNG CỘNG
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  color: S.primary,
+                  fontFamily: '"Manrope", sans-serif',
+                }}
+              >
+                {formatVND(hasChanges ? subtotal + (order.tax_amount || 0) + (order.service_fee || 0) : (order.total || subtotal))}
+              </Typography>
+            </Box>
           </Box>
-        </Stack>
+        )}
       </Box>
 
-      {/* Actions */}
-      <Box sx={{ display: 'flex', gap: 2 }}>
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={() => navigate(`/waiter/orders/${order.table_id}`)}
-          sx={{
-            flex: 1,
-            minHeight: 48,
-            borderRadius: '100px',
-            textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            borderColor: '#C62828',
-            color: '#C62828',
-            '&:hover': {
-              borderColor: '#B71C1C',
-              bgcolor: 'rgba(198,40,40,0.04)',
-            },
-          }}
-          size="large"
-        >
-          Thêm món
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<PaymentIcon />}
-          onClick={() => {
-            if (canPayDirectly) {
-              // Cashier/Manager → navigate thẳng tới màn hình thanh toán
-              navigate(`/cashier/payment/${order.id}`);
-            } else {
-              // Waiter → chỉ thông báo cho thu ngân
-              toast.success('Đã gửi yêu cầu thanh toán cho thu ngân');
-              navigate('/waiter/tables');
-            }
-          }}
-          sx={{
-            flex: 1,
-            minHeight: 48,
-            borderRadius: '100px',
-            textTransform: 'none',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            bgcolor: canPayDirectly ? '#2E7D32' : '#C62828',
-            boxShadow: 'none',
-            '&:hover': {
-              bgcolor: canPayDirectly ? '#1B5E20' : '#B71C1C',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            },
-          }}
-          size="large"
-        >
-          {canPayDirectly ? 'Thanh toán ngay' : 'Yêu cầu thanh toán'}
-        </Button>
+      {/* ── Sticky Bottom Actions ── */}
+      <Box
+        sx={{
+          position: 'sticky',
+          bottom: 0,
+          bgcolor: S.surfaceLowest,
+          borderTop: `1px solid ${S.outline}`,
+          px: { xs: 2, md: 3 },
+          py: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+        }}
+      >
+        {/* Changes bar — only when edits exist */}
+        {hasChanges && (
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button
+              variant="outlined"
+              onClick={handleDiscardChanges}
+              sx={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: '0.75rem',
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                borderColor: S.outline,
+                color: S.onSurfaceVariant,
+                '&:hover': { borderColor: S.onSurfaceVariant, bgcolor: S.surfaceLow },
+              }}
+            >
+              Hủy thay đổi
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <SendIcon sx={{ fontSize: 18 }} />}
+              disabled={submitting}
+              onClick={handleSubmitChanges}
+              sx={{
+                flex: 1.5,
+                minHeight: 44,
+                borderRadius: '0.75rem',
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: '0.875rem',
+                bgcolor: S.tertiary,
+                boxShadow: 'none',
+                fontFamily: '"Inter", sans-serif',
+                '&:hover': { bgcolor: '#004c6a', boxShadow: 'none' },
+              }}
+            >
+              {submitting ? 'Đang gửi...' : 'Gửi lại bếp'}
+            </Button>
+          </Box>
+        )}
+
+        {/* Main actions */}
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => navigate(`/waiter/orders/${order.table_id}`)}
+            sx={{
+              flex: 1,
+              minHeight: 48,
+              borderRadius: '0.75rem',
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              borderColor: S.primaryContainer,
+              color: S.primary,
+              '&:hover': {
+                borderColor: S.primaryContainer,
+                bgcolor: 'rgba(245,158,11,0.06)',
+              },
+            }}
+          >
+            Thêm món
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<PaymentIcon />}
+            onClick={() => {
+              if (canPayDirectly) {
+                navigate(`/cashier/payment/${order.id}`);
+              } else {
+                toast.success('Đã gửi yêu cầu thanh toán cho thu ngân');
+                navigate('/waiter/tables');
+              }
+            }}
+            sx={{
+              flex: 1,
+              minHeight: 48,
+              borderRadius: '0.75rem',
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              bgcolor: S.tertiary,
+              boxShadow: 'none',
+              '&:hover': {
+                bgcolor: '#004c6a',
+                boxShadow: 'none',
+              },
+            }}
+          >
+            {canPayDirectly ? 'Thanh toán' : 'Yêu cầu thanh toán'}
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

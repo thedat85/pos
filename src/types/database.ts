@@ -75,6 +75,7 @@ export interface MenuItem {
 
 export interface Order {
   id: string;
+  order_code: string | null;
   table_id: string;
   status: OrderStatus;
   subtotal: number;

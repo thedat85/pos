@@ -16,7 +16,7 @@ import {
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { paymentService } from '../../services/paymentService';
-import { APP_NAME } from '../../lib/constants';
+import { APP_NAME, formatOrderCode } from '../../lib/constants';
 import type { Order, Payment } from '../../types';
 
 function fmt(amount: number): string {
@@ -241,7 +241,7 @@ export default function InvoiceScreen() {
           <DashLine />
 
           {/* ── Order Info ── */}
-          <Row left="Số HĐ:" right={`#${order.id.slice(0, 8).toUpperCase()}`} />
+          <Row left="Số HĐ:" right={`#${formatOrderCode(order)}`} />
           <Row left="Bàn:" right={order.table?.table_no ?? '---'} />
           <Row left="Ngày:" right={fmtDate(order.created_at)} />
 

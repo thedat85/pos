@@ -12,6 +12,8 @@ import {
   Button,
   IconButton,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   VolumeUp as VolumeUpIcon,
@@ -62,8 +64,8 @@ function getElapsedTime(createdAt: string): string {
   const created = new Date(createdAt).getTime();
   const diffMs = now - created;
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Vua moi';
-  if (mins < 60) return `${mins} phut`;
+  if (mins < 1) return 'Vừa mới';
+  if (mins < 60) return `${mins} phút`;
   const hrs = Math.floor(mins / 60);
   const remainMins = mins % 60;
   return `${hrs}h ${remainMins}m`;
@@ -74,14 +76,24 @@ function isUrgent(createdAt: string): boolean {
   return mins > 15;
 }
 
+const TAB_CONFIG = [
+  { key: 'pending' as const, label: 'Đơn mới', color: T.tertiaryContainer },
+  { key: 'preparing' as const, label: 'Đang làm', color: T.primaryContainer },
+  { key: 'completed' as const, label: 'Hoàn tất', color: T.success },
+];
+
 export default function KitchenDisplayScreen() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [connected, setConnected] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -162,9 +174,14 @@ export default function KitchenDisplayScreen() {
     return {
       pendingOrders: pending,
       preparingOrders: preparing,
-      completedOrders: completed.slice(0, 10), // limit completed shown
+      completedOrders: completed.slice(0, 10),
     };
   }, [orders]);
+
+  const columnData = useMemo(
+    () => [pendingOrders, preparingOrders, completedOrders],
+    [pendingOrders, preparingOrders, completedOrders]
+  );
 
   const handleUpdateStatus = async (
     itemId: string,
@@ -173,7 +190,6 @@ export default function KitchenDisplayScreen() {
     try {
       await kitchenService.updateItemStatus(itemId, status);
       if (soundOn && status === 'completed') {
-        // Simple beep via Web Audio API
         try {
           const ctx = new AudioContext();
           const osc = ctx.createOscillator();
@@ -186,11 +202,11 @@ export default function KitchenDisplayScreen() {
         }
       }
       toast.success(
-        status === 'preparing' ? 'Bat dau lam' : 'Da hoan tat!'
+        status === 'preparing' ? 'Bắt đầu làm' : 'Đã hoàn tất!'
       );
       await loadOrders();
     } catch (err) {
-      toast.error('Loi cap nhat trang thai');
+      toast.error('Lỗi cập nhật trạng thái');
       console.error(err);
     }
   };
@@ -200,10 +216,10 @@ export default function KitchenDisplayScreen() {
       await Promise.all(
         items.map((i) => kitchenService.updateItemStatus(i.id, 'preparing'))
       );
-      toast.success('Bat dau lam tat ca');
+      toast.success('Bắt đầu làm tất cả');
       await loadOrders();
     } catch {
-      toast.error('Loi cap nhat trang thai');
+      toast.error('Lỗi cập nhật trạng thái');
     }
   };
 
@@ -212,10 +228,10 @@ export default function KitchenDisplayScreen() {
       await Promise.all(
         items.map((i) => kitchenService.updateItemStatus(i.id, 'completed'))
       );
-      toast.success('Hoan tat tat ca!');
+      toast.success('Hoàn tất tất cả!');
       await loadOrders();
     } catch {
-      toast.error('Loi cap nhat trang thai');
+      toast.error('Lỗi cập nhật trạng thái');
     }
   };
 
@@ -242,26 +258,25 @@ export default function KitchenDisplayScreen() {
           bgcolor: isComp ? 'rgba(46,49,50,0.50)' : T.inverseSurface,
           color: T.inverseOnSurface,
           mb: 2,
-          borderRadius: '1.5rem',
+          borderRadius: { xs: '1rem', md: '1.5rem' },
           opacity: isComp ? 0.6 : 1,
           transition: 'all 0.25s ease',
-          borderLeft: `${isComp ? 4 : 8}px solid ${borderLeftColor}`,
+          borderLeft: `${isComp ? 4 : 6}px solid ${borderLeftColor}`,
           boxShadow: type === 'preparing'
             ? '0 25px 50px -12px rgba(0,0,0,0.4)'
             : '0 12px 32px rgba(25,28,29,0.04)',
           ...(type === 'preparing' && {
-            ring: 2,
             outline: `2px solid rgba(245,158,11,0.20)`,
             outlineOffset: '0px',
           }),
         }}
       >
-        <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+        <CardContent sx={{ p: { xs: 2, md: 3 }, '&:last-child': { pb: { xs: 2, md: 3 } } }}>
           {/* Header: table + timer */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
             <Typography
               sx={{
-                fontSize: '3rem',
+                fontSize: { xs: '1.75rem', md: '3rem' },
                 fontWeight: 900,
                 lineHeight: 1,
                 color: T.inverseOnSurface,
@@ -275,10 +290,10 @@ export default function KitchenDisplayScreen() {
                 bgcolor: urgent ? T.error : T.primaryFixed,
                 color: urgent ? '#fff' : T.onSurfaceVariant,
                 px: 1.5,
-                py: 1,
+                py: 0.75,
                 borderRadius: '0.75rem',
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: { xs: 12, md: 14 },
                 fontFamily: 'Inter, sans-serif',
                 fontVariantNumeric: 'tabular-nums',
                 whiteSpace: 'nowrap',
@@ -289,7 +304,7 @@ export default function KitchenDisplayScreen() {
           </Box>
 
           {/* Items list */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {group.items.map((item) => (
               <Box
                 key={item.id}
@@ -297,28 +312,31 @@ export default function KitchenDisplayScreen() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  minHeight: 48,
+                  gap: 1,
+                  minHeight: { xs: 40, md: 48 },
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flex: 1, minWidth: 0 }}>
                   {/* Status icon */}
                   {isComp ? (
-                    <CheckCircleIcon sx={{ color: T.success, fontSize: 22 }} />
+                    <CheckCircleIcon sx={{ color: T.success, fontSize: { xs: 18, md: 22 }, mt: '2px', flexShrink: 0 }} />
                   ) : (
-                    <UncheckedIcon sx={{ color: T.textMuted, fontSize: 22 }} />
+                    <UncheckedIcon sx={{ color: T.textMuted, fontSize: { xs: 18, md: 22 }, mt: '2px', flexShrink: 0 }} />
                   )}
                   <Typography
                     sx={{
-                      fontSize: 18,
+                      fontSize: { xs: 14, md: 18 },
                       fontFamily: 'Inter, sans-serif',
                       color: T.inverseOnSurface,
+                      lineHeight: 1.4,
+                      wordBreak: 'break-word',
                     }}
                   >
                     <Box
                       component="span"
                       sx={{
                         fontWeight: 700,
-                        mr: 1,
+                        mr: 0.75,
                         color: T.tertiaryContainer,
                       }}
                     >
@@ -334,20 +352,21 @@ export default function KitchenDisplayScreen() {
                     variant="contained"
                     sx={{
                       bgcolor: T.tertiary,
-                      fontSize: 14,
-                      minWidth: 90,
-                      minHeight: 44,
+                      fontSize: { xs: 12, md: 14 },
+                      minWidth: { xs: 70, md: 90 },
+                      minHeight: { xs: 36, md: 44 },
                       borderRadius: '0.75rem',
                       textTransform: 'none',
                       fontWeight: 600,
                       fontFamily: 'Inter, sans-serif',
                       boxShadow: 'none',
+                      flexShrink: 0,
                       '&:hover': { bgcolor: '#004c6a', boxShadow: 'none' },
                       '&:active': { transform: 'scale(0.95)' },
                     }}
                     onClick={() => handleUpdateStatus(item.id, 'preparing')}
                   >
-                    Bat dau
+                    Bắt đầu
                   </Button>
                 )}
 
@@ -358,14 +377,15 @@ export default function KitchenDisplayScreen() {
                     sx={{
                       bgcolor: T.success,
                       color: T.bg,
-                      fontSize: 14,
-                      minWidth: 90,
-                      minHeight: 44,
+                      fontSize: { xs: 12, md: 14 },
+                      minWidth: { xs: 70, md: 90 },
+                      minHeight: { xs: 36, md: 44 },
                       borderRadius: '0.75rem',
                       textTransform: 'none',
                       fontWeight: 600,
                       fontFamily: 'Inter, sans-serif',
                       boxShadow: 'none',
+                      flexShrink: 0,
                       '&:hover': { bgcolor: '#22c55e', boxShadow: 'none' },
                       '&:active': { transform: 'scale(0.95)' },
                     }}
@@ -378,10 +398,11 @@ export default function KitchenDisplayScreen() {
                 {type === 'completed' && (
                   <Typography
                     sx={{
-                      fontSize: 13,
+                      fontSize: { xs: 12, md: 13 },
                       fontWeight: 500,
                       color: T.success,
                       fontFamily: 'Inter, sans-serif',
+                      flexShrink: 0,
                     }}
                   >
                     Xong
@@ -391,20 +412,20 @@ export default function KitchenDisplayScreen() {
             ))}
           </Box>
 
-          {/* Bulk action buttons — outlined style */}
+          {/* Bulk action buttons */}
           {type === 'pending' && group.items.length > 1 && (
             <Button
               fullWidth
               variant="outlined"
               sx={{
-                mt: 2.5,
-                minHeight: 48,
+                mt: 2,
+                minHeight: { xs: 40, md: 48 },
                 borderRadius: '0.75rem',
                 borderColor: T.tertiaryContainer,
                 color: T.tertiaryContainer,
                 textTransform: 'none',
                 fontWeight: 600,
-                fontSize: 14,
+                fontSize: { xs: 13, md: 14 },
                 fontFamily: 'Inter, sans-serif',
                 '&:hover': {
                   borderColor: T.tertiaryContainer,
@@ -413,7 +434,7 @@ export default function KitchenDisplayScreen() {
               }}
               onClick={() => handleStartAll(group.items)}
             >
-              Bat dau tat ca
+              Bắt đầu tất cả
             </Button>
           )}
 
@@ -422,14 +443,14 @@ export default function KitchenDisplayScreen() {
               fullWidth
               variant="outlined"
               sx={{
-                mt: 2.5,
-                minHeight: 48,
+                mt: 2,
+                minHeight: { xs: 40, md: 48 },
                 borderRadius: '0.75rem',
                 borderColor: T.success,
                 color: T.success,
                 textTransform: 'none',
                 fontWeight: 600,
-                fontSize: 14,
+                fontSize: { xs: 13, md: 14 },
                 fontFamily: 'Inter, sans-serif',
                 '&:hover': {
                   borderColor: T.success,
@@ -438,7 +459,7 @@ export default function KitchenDisplayScreen() {
               }}
               onClick={() => handleCompleteAll(group.items)}
             >
-              Xong tat ca
+              Xong tất cả
             </Button>
           )}
         </CardContent>
@@ -446,7 +467,7 @@ export default function KitchenDisplayScreen() {
     );
   };
 
-  /* ── Column ── */
+  /* ── Column (desktop) ── */
   const renderColumn = (
     title: string,
     borderColor: string,
@@ -455,7 +476,7 @@ export default function KitchenDisplayScreen() {
     type: 'pending' | 'preparing' | 'completed'
   ) => (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {/* Column header — border-b-4 style */}
+      {/* Column header */}
       <Box
         sx={{
           display: 'flex',
@@ -480,7 +501,7 @@ export default function KitchenDisplayScreen() {
         <Box
           sx={{
             bgcolor: countBg,
-            color: type === 'completed' ? T.bg : T.bg,
+            color: T.bg,
             fontFamily: 'Inter, sans-serif',
             fontWeight: 700,
             fontSize: 14,
@@ -519,7 +540,7 @@ export default function KitchenDisplayScreen() {
               fontFamily: 'Inter, sans-serif',
             }}
           >
-            Khong co mon
+            Không có món
           </Typography>
         ) : (
           items.map((g) => renderOrderCard(g, type))
@@ -545,6 +566,11 @@ export default function KitchenDisplayScreen() {
     );
   }
 
+  /* ── Mobile tab content ── */
+  const activeMobileTab = TAB_CONFIG[activeTab];
+  const activeMobileData = columnData[activeTab];
+  const activeMobileType = activeMobileTab.key;
+
   /* ── Main Render ── */
   return (
     <>
@@ -564,80 +590,41 @@ export default function KitchenDisplayScreen() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            px: 4,
-            py: 2,
+            px: { xs: 2, md: 4 },
+            py: { xs: 1.5, md: 2 },
+            gap: 1,
           }}
         >
-          {/* Left: Title */}
-          <Typography
-            sx={{
-              fontSize: 28,
-              fontWeight: 800,
-              color: T.inverseOnSurface,
-              fontFamily: 'Manrope, sans-serif',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Bep
-          </Typography>
+          {/* Left: Title + connection */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography
+              sx={{
+                fontSize: { xs: 20, md: 28 },
+                fontWeight: 800,
+                color: T.inverseOnSurface,
+                fontFamily: 'Manrope, sans-serif',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              Bếp
+            </Typography>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                bgcolor: connected ? T.success : T.error,
+                animation: connected ? 'stitch-pulse 2s infinite' : 'none',
+              }}
+            />
+          </Box>
 
-          {/* Right: User + logout | status + clock + sound toggle */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
-            {/* User name + Logout */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Typography
-                sx={{
-                  fontSize: 14,
-                  color: T.textMuted,
-                  fontWeight: 500,
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
-                {user?.full_name ?? user?.username ?? ''}
-              </Typography>
-              <IconButton
-                onClick={async () => {
-                  await logout();
-                  navigate('/login');
-                }}
-                sx={{
-                  color: T.inverseOnSurface,
-                  border: '1px solid rgba(240,241,242,0.20)',
-                  borderRadius: '0.75rem',
-                  width: 44,
-                  height: 44,
-                  '&:hover': { bgcolor: 'rgba(240,241,242,0.06)' },
-                }}
-              >
-                <LogoutIcon fontSize="small" />
-              </IconButton>
-            </Box>
-
-            {/* Divider */}
-            <Box sx={{ width: 1, height: 28, bgcolor: 'rgba(240,241,242,0.12)' }} />
-
-            {/* Connection indicator */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  bgcolor: connected ? T.success : T.error,
-                  animation: connected ? 'stitch-pulse 2s infinite' : 'none',
-                }}
-              />
-              <Typography
-                sx={{ fontSize: 13, color: T.textMuted, fontFamily: 'Inter, sans-serif' }}
-              >
-                {connected ? 'Ket noi' : 'Mat ket noi'}
-              </Typography>
-            </Box>
-
+          {/* Right: Clock + Sound + Logout */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 2 } }}>
             {/* Clock */}
             <Typography
               sx={{
-                fontSize: 22,
+                fontSize: { xs: 16, md: 22 },
                 fontWeight: 600,
                 color: T.inverseOnSurface,
                 fontVariantNumeric: 'tabular-nums',
@@ -658,51 +645,156 @@ export default function KitchenDisplayScreen() {
                 color: T.inverseOnSurface,
                 border: '1px solid rgba(240,241,242,0.20)',
                 borderRadius: '0.75rem',
-                width: 44,
-                height: 44,
+                width: { xs: 36, md: 44 },
+                height: { xs: 36, md: 44 },
                 '&:hover': { bgcolor: 'rgba(240,241,242,0.06)' },
               }}
             >
-              {soundOn ? <VolumeUpIcon /> : <VolumeOffIcon />}
+              {soundOn ? <VolumeUpIcon sx={{ fontSize: { xs: 18, md: 24 } }} /> : <VolumeOffIcon sx={{ fontSize: { xs: 18, md: 24 } }} />}
+            </IconButton>
+
+            {/* Logout */}
+            <IconButton
+              onClick={async () => {
+                await logout();
+                navigate('/login');
+              }}
+              sx={{
+                color: T.textMuted,
+                border: '1px solid rgba(240,241,242,0.12)',
+                borderRadius: '0.75rem',
+                width: { xs: 36, md: 44 },
+                height: { xs: 36, md: 44 },
+                '&:hover': { bgcolor: 'rgba(240,241,242,0.06)', color: T.error },
+              }}
+            >
+              <LogoutIcon sx={{ fontSize: { xs: 16, md: 20 } }} />
             </IconButton>
           </Box>
         </Box>
 
-        {/* ── 3-column Kanban ── */}
-        <Box
-          sx={{
-            flex: 1,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 3,
-            px: 4,
-            pb: 3,
-            minHeight: 0,
-            height: 'calc(100vh - 80px)',
-          }}
-        >
-          {renderColumn(
-            'Don moi',
-            T.tertiaryContainer,
-            T.tertiaryContainer,
-            pendingOrders,
-            'pending'
-          )}
-          {renderColumn(
-            'Dang lam',
-            T.primaryContainer,
-            T.primaryContainer,
-            preparingOrders,
-            'preparing'
-          )}
-          {renderColumn(
-            'Hoan tat',
-            T.success,
-            T.success,
-            completedOrders,
-            'completed'
-          )}
-        </Box>
+        {/* ── Mobile: Tab Bar ── */}
+        {isMobile && (
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 0.5,
+              px: 2,
+              pb: 1.5,
+            }}
+          >
+            {TAB_CONFIG.map((tab, idx) => (
+              <Button
+                key={tab.key}
+                onClick={() => setActiveTab(idx)}
+                sx={{
+                  flex: 1,
+                  borderRadius: '0.75rem',
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  fontFamily: 'Inter, sans-serif',
+                  py: 1,
+                  color: activeTab === idx ? T.bg : T.inverseOnSurface,
+                  bgcolor: activeTab === idx ? tab.color : 'rgba(240,241,242,0.08)',
+                  '&:hover': {
+                    bgcolor: activeTab === idx ? tab.color : 'rgba(240,241,242,0.12)',
+                  },
+                  gap: 0.75,
+                }}
+              >
+                {tab.label}
+                <Box
+                  component="span"
+                  sx={{
+                    bgcolor: activeTab === idx ? 'rgba(0,0,0,0.2)' : 'rgba(240,241,242,0.15)',
+                    color: activeTab === idx ? T.bg : T.inverseOnSurface,
+                    borderRadius: '9999px',
+                    minWidth: 22,
+                    height: 22,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {columnData[idx].length}
+                </Box>
+              </Button>
+            ))}
+          </Box>
+        )}
+
+        {/* ── Desktop: 3-column Kanban ── */}
+        {!isMobile && (
+          <Box
+            sx={{
+              flex: 1,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 3,
+              px: 4,
+              pb: 3,
+              minHeight: 0,
+            }}
+          >
+            {renderColumn(
+              'Đơn mới',
+              T.tertiaryContainer,
+              T.tertiaryContainer,
+              pendingOrders,
+              'pending'
+            )}
+            {renderColumn(
+              'Đang làm',
+              T.primaryContainer,
+              T.primaryContainer,
+              preparingOrders,
+              'preparing'
+            )}
+            {renderColumn(
+              'Hoàn tất',
+              T.success,
+              T.success,
+              completedOrders,
+              'completed'
+            )}
+          </Box>
+        )}
+
+        {/* ── Mobile: Tab Content ── */}
+        {isMobile && (
+          <Box
+            sx={{
+              flex: 1,
+              overflowY: 'auto',
+              px: 2,
+              pb: 2,
+              '&::-webkit-scrollbar': { width: 4 },
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: 'rgba(240,241,242,0.15)',
+                borderRadius: 2,
+              },
+            }}
+          >
+            {activeMobileData.length === 0 ? (
+              <Typography
+                sx={{
+                  textAlign: 'center',
+                  color: T.textMuted,
+                  mt: 8,
+                  fontSize: 15,
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                Không có món
+              </Typography>
+            ) : (
+              activeMobileData.map((g) => renderOrderCard(g, activeMobileType))
+            )}
+          </Box>
+        )}
       </Box>
     </>
   );

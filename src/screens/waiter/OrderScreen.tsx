@@ -28,6 +28,7 @@ import toast from 'react-hot-toast';
 import { tableService } from '../../services/tableService';
 import { menuService } from '../../services/menuService';
 import { orderService } from '../../services/orderService';
+import { formatOrderCode } from '../../lib/constants';
 import type { Table, Category, MenuItem, Order, OrderItem } from '../../types';
 
 interface CartItem {
@@ -314,16 +315,16 @@ export default function OrderScreen() {
         </Box>
 
         {/* Menu Items Grid */}
-        <Box sx={{ flex: 1, overflow: 'auto', px: { xs: 2, md: 3 }, pb: 3 }}>
+        <Box sx={{ flex: 1, overflow: 'auto', px: { xs: 1.5, md: 3 }, pb: 3 }}>
           <Box
             sx={{
               display: 'grid',
               gridTemplateColumns: {
-                xs: '1fr',
+                xs: 'repeat(2, 1fr)',
                 sm: 'repeat(2, 1fr)',
                 lg: 'repeat(3, 1fr)',
               },
-              gap: '1.5rem',
+              gap: { xs: '0.75rem', sm: '1rem', lg: '1.5rem' },
             }}
           >
             {filteredItems.map((item) => {
@@ -366,7 +367,7 @@ export default function OrderScreen() {
                       sx={{
                         position: 'relative',
                         width: '100%',
-                        paddingTop: '65%', // aspect ratio ~3:2
+                        paddingTop: { xs: '60%', sm: '65%' }, // aspect ratio
                         bgcolor: item.image_url ? undefined : '#f3f4f5',
                         overflow: 'hidden',
                       }}
@@ -433,16 +434,20 @@ export default function OrderScreen() {
                       )}
                     </Box>
 
-                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
                       <Typography
                         sx={{
                           fontFamily: '"Inter", sans-serif',
-                          fontSize: '0.925rem',
+                          fontSize: { xs: '0.8rem', sm: '0.925rem' },
                           fontWeight: 500,
                           color: '#191c1d',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          lineHeight: 1.3,
+                          minHeight: { xs: '2.08rem', sm: '2.41rem' },
                         }}
                         title={item.name}
                       >
@@ -451,7 +456,7 @@ export default function OrderScreen() {
                       <Typography
                         sx={{
                           fontFamily: '"Inter", sans-serif',
-                          fontSize: '0.925rem',
+                          fontSize: { xs: '0.8rem', sm: '0.925rem' },
                           fontWeight: 700,
                           color: '#855300',
                           mt: 0.5,
@@ -468,16 +473,16 @@ export default function OrderScreen() {
                       badgeContent={cartItem.quantity}
                       sx={{
                         position: 'absolute',
-                        top: 16,
-                        left: 16,
+                        top: { xs: 10, sm: 16 },
+                        left: { xs: 10, sm: 16 },
                         '& .MuiBadge-badge': {
                           bgcolor: '#f59e0b',
                           color: '#ffffff',
                           fontFamily: '"Inter", sans-serif',
                           fontWeight: 700,
-                          fontSize: '0.8rem',
-                          minWidth: 24,
-                          height: 24,
+                          fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                          minWidth: { xs: 20, sm: 24 },
+                          height: { xs: 20, sm: 24 },
                           borderRadius: '100px',
                         },
                       }}
@@ -522,7 +527,7 @@ export default function OrderScreen() {
           </Typography>
           {order && (
             <Chip
-              label={`#${order.id.slice(0, 8)}`}
+              label={`#${formatOrderCode(order)}`}
               size="small"
               sx={{
                 ml: 'auto',

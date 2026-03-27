@@ -86,3 +86,19 @@ export const ROLE_ROUTES: Record<string, string> = {
 };
 
 export const DEFAULT_PAGE_SIZE = 20;
+
+/**
+ * Format order display code.
+ * Uses `order_code` (YYMMDD_00001) if available, falls back to
+ * generating one from created_at + id.
+ */
+export function formatOrderCode(order: { order_code?: string | null; id: string; created_at: string }): string {
+  if (order.order_code) return order.order_code;
+  // Fallback: generate from created_at date + last 5 chars of id
+  const d = new Date(order.created_at);
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const suffix = order.id.replace(/-/g, '').slice(-5).toUpperCase();
+  return `${yy}${mm}${dd}_${suffix}`;
+}

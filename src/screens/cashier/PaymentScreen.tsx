@@ -11,8 +11,8 @@ import {
   CardContent,
   Button,
   TextField,
-  Checkbox,
-  FormControlLabel,
+
+
   CircularProgress,
   Chip,
 } from '@mui/material';
@@ -26,7 +26,7 @@ import toast from 'react-hot-toast';
 import { paymentService } from '../../services/paymentService';
 import { orderService } from '../../services/orderService';
 import { useAuth } from '../../hooks/useAuth';
-import { ORDER_STATUS } from '../../lib/constants';
+import { ORDER_STATUS, formatOrderCode } from '../../lib/constants';
 import type { Order } from '../../types';
 
 /* ── Stitch Tactile Atelier tokens ── */
@@ -80,7 +80,6 @@ export default function PaymentScreen() {
   // Payment form state
   const [paymentTab, setPaymentTab] = useState(0); // 0 = cash, 1 = qr
   const [amountReceived, setAmountReceived] = useState('');
-  const [qrConfirmed, setQrConfirmed] = useState(false);
 
   // Load list of done orders if no orderId in URL
   useEffect(() => {
@@ -93,7 +92,7 @@ export default function PaymentScreen() {
           setDoneOrders(result.data);
         } catch (err) {
           console.error('Failed to load orders:', err);
-          toast.error('Khong the tai danh sach don hang');
+          toast.error('Không thể tải danh sách đơn hàng');
         } finally {
           setLoading(false);
         }
@@ -118,7 +117,7 @@ export default function PaymentScreen() {
         setTotals(totalData);
       } catch (err) {
         console.error('Failed to load order:', err);
-        toast.error('Khong the tai thong tin don hang');
+        toast.error('Không thể tải thông tin đơn hàng');
       }
     };
     loadOrder();
@@ -138,13 +137,12 @@ export default function PaymentScreen() {
   const canPay = useMemo(() => {
     if (!totals) return false;
     if (paymentTab === 0) {
-      // Cash
       const received = parseFloat(amountReceived) || 0;
       return received >= totals.total;
     }
-    // QR
-    return qrConfirmed;
-  }, [paymentTab, amountReceived, totals, qrConfirmed]);
+    // QR — always enabled
+    return true;
+  }, [paymentTab, amountReceived, totals]);
 
   const handlePayment = async () => {
     if (!selectedOrderId || !totals || !user) return;
@@ -153,12 +151,7 @@ export default function PaymentScreen() {
     const received = paymentTab === 0 ? parseFloat(amountReceived) || 0 : totals.total;
 
     if (method === 'cash' && received < totals.total) {
-      toast.error('So tien khach dua khong du');
-      return;
-    }
-
-    if (method === 'qr' && !qrConfirmed) {
-      toast.error('Vui long xac nhan da nhan tien');
+      toast.error('Số tiền khách đưa không đủ');
       return;
     }
 
@@ -174,13 +167,13 @@ export default function PaymentScreen() {
         change_amount: change,
         cashier_id: user.id,
       });
-      toast.success('Thanh toan thanh cong!');
+      toast.success('Thanh toán thành công!');
       setTimeout(() => {
-        navigate(`/cashier/invoice/${selectedOrderId}`);
+        navigate('/waiter/tables');
       }, 300);
     } catch (err) {
       console.error('Payment failed:', err);
-      toast.error('Thanh toan that bai. Vui long thu lai.');
+      toast.error('Thanh toán thất bại. Vui lòng thử lại.');
     } finally {
       setProcessing(false);
     }
@@ -210,7 +203,7 @@ export default function PaymentScreen() {
           }}
         >
           <PaymentIcon sx={{ color: S.tertiary }} />
-          Chon don hang de thanh toan
+          Chọn đơn hàng để thanh toán
         </Typography>
 
         {loading ? (
@@ -229,7 +222,7 @@ export default function PaymentScreen() {
             }}
           >
             <Typography sx={{ color: S.onSurfaceVariant, fontSize: 18 }}>
-              Khong co don hang nao can thanh toan
+              Không có đơn hàng nào cần thanh toán
             </Typography>
           </Card>
         ) : (
@@ -261,7 +254,7 @@ export default function PaymentScreen() {
                         fontFamily: 'Manrope, sans-serif',
                       }}
                     >
-                      Ban {o.table?.table_no ?? '??'}
+                      Bàn {o.table?.table_no ?? '??'}
                     </Typography>
                     <Chip
                       label={formatCurrency(o.total)}
@@ -283,7 +276,7 @@ export default function PaymentScreen() {
                       fontFamily: 'Inter, sans-serif',
                     }}
                   >
-                    Don hang #{o.id.slice(0, 8)} -{' '}
+                    Đơn hàng #{formatOrderCode(o)} -{' '}
                     {new Date(o.created_at).toLocaleString('vi-VN')}
                   </Typography>
                 </CardContent>
@@ -317,7 +310,7 @@ export default function PaymentScreen() {
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
             minHeight: 0,
-            overflow: 'hidden',
+            overflow: { xs: 'auto', md: 'hidden' },
           }}
         >
           {/* ── LEFT: Order Summary ── */}
@@ -347,10 +340,10 @@ export default function PaymentScreen() {
                       fontFamily: 'Manrope, sans-serif',
                     }}
                   >
-                    Ban {order.table?.table_no ?? '??'} - Don #{order.id.slice(0, 8)}
+                    Bàn {order.table?.table_no ?? '??'} - Đơn #{formatOrderCode(order)}
                   </Typography>
                   <Chip
-                    label="Chua thanh toan"
+                    label="Chưa thanh toán"
                     sx={{
                       bgcolor: S.secondaryContainer,
                       color: S.primary,
@@ -409,7 +402,7 @@ export default function PaymentScreen() {
                 <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ color: S.onSurfaceVariant, fontSize: 15 }}>
-                      Tam tinh
+                      Tạm tính
                     </Typography>
                     <Typography sx={{ color: S.onSurface, fontSize: 15 }}>
                       {formatCurrency(totals.subtotal)}
@@ -417,7 +410,7 @@ export default function PaymentScreen() {
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ color: S.onSurfaceVariant, fontSize: 15 }}>
-                      Thue
+                      Thuế
                     </Typography>
                     <Typography sx={{ color: S.onSurface, fontSize: 15 }}>
                       {formatCurrency(totals.tax)}
@@ -425,7 +418,7 @@ export default function PaymentScreen() {
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography sx={{ color: S.onSurfaceVariant, fontSize: 15 }}>
-                      Phi dich vu
+                      Phí dịch vụ
                     </Typography>
                     <Typography sx={{ color: S.onSurface, fontSize: 15 }}>
                       {formatCurrency(totals.service_fee)}
@@ -452,7 +445,7 @@ export default function PaymentScreen() {
                       fontFamily: 'Manrope, sans-serif',
                     }}
                   >
-                    TONG CONG
+                    TỔNG CỘNG
                   </Typography>
                   <Typography
                     sx={{
@@ -490,7 +483,7 @@ export default function PaymentScreen() {
               }}
             >
               {[
-                { icon: <CashIcon sx={{ fontSize: 20 }} />, label: 'Tien mat', idx: 0 },
+                { icon: <CashIcon sx={{ fontSize: 20 }} />, label: 'Tiền mặt', idx: 0 },
                 { icon: <QrCodeIcon sx={{ fontSize: 20 }} />, label: 'QR Code', idx: 1 },
               ].map((tab) => (
                 <Button
@@ -498,7 +491,6 @@ export default function PaymentScreen() {
                   onClick={() => {
                     setPaymentTab(tab.idx);
                     setAmountReceived('');
-                    setQrConfirmed(false);
                   }}
                   startIcon={tab.icon}
                   sx={{
@@ -560,7 +552,7 @@ export default function PaymentScreen() {
                   sx={{
                     border: `2px dashed ${changeAmount > 0 ? S.tertiary : S.outline}`,
                     borderRadius: '2rem',
-                    p: 4,
+                    p: { xs: 2.5, md: 4 },
                     textAlign: 'center',
                     mb: 3,
                     transition: 'all 0.2s ease',
@@ -576,11 +568,11 @@ export default function PaymentScreen() {
                       letterSpacing: '0.05em',
                     }}
                   >
-                    Tien thua
+                    Tiền thừa
                   </Typography>
                   <Typography
                     sx={{
-                      fontSize: '3.75rem',
+                      fontSize: { xs: '2.5rem', md: '3.75rem' },
                       fontWeight: 900,
                       color: changeAmount > 0 ? S.tertiary : S.onSurfaceVariant,
                       fontFamily: 'Manrope, sans-serif',
@@ -641,7 +633,7 @@ export default function PaymentScreen() {
                         },
                       }}
                     >
-                      Dung so tien: {formatCurrency(totals.total)}
+                      Đúng số tiền: {formatCurrency(totals.total)}
                     </Button>
                   )}
                 </Box>
@@ -665,7 +657,7 @@ export default function PaymentScreen() {
                   <Box
                     component="img"
                     src={qrUrl}
-                    alt="QR Code thanh toan"
+                    alt="QR Code thanh toán"
                     sx={{
                       width: 250,
                       height: 250,
@@ -686,20 +678,6 @@ export default function PaymentScreen() {
                   {formatCurrency(totals.total)}
                 </Typography>
 
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={qrConfirmed}
-                      onChange={(e) => setQrConfirmed(e.target.checked)}
-                      sx={{
-                        color: S.outline,
-                        '&.Mui-checked': { color: S.tertiary },
-                      }}
-                    />
-                  }
-                  label="Xac nhan da nhan tien"
-                  sx={{ color: S.onSurface }}
-                />
               </Box>
             )}
 
@@ -718,9 +696,9 @@ export default function PaymentScreen() {
                 )
               }
               sx={{
-                mt: 4,
-                height: 96,
-                fontSize: 20,
+                mt: { xs: 3, md: 4 },
+                height: { xs: 64, md: 96 },
+                fontSize: { xs: 16, md: 20 },
                 fontWeight: 700,
                 textTransform: 'none',
                 borderRadius: '1.5rem',
@@ -737,7 +715,7 @@ export default function PaymentScreen() {
                 },
               }}
             >
-              {processing ? 'Dang xu ly...' : 'Hoan tat thanh toan'}
+              {processing ? 'Đang xử lý...' : 'Hoàn tất thanh toán'}
             </Button>
           </Box>
         </Box>

@@ -84,6 +84,7 @@ CREATE TABLE public.menu_items (
 -- ============================================
 CREATE TABLE public.orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_code VARCHAR(12) UNIQUE,
   table_id UUID NOT NULL REFERENCES public.tables(id),
   status VARCHAR(20) DEFAULT 'new' CHECK (status IN ('new', 'sent_to_kitchen', 'preparing', 'done', 'closed')),
   subtotal DECIMAL(12,2) DEFAULT 0,
